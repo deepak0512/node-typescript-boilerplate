@@ -1,6 +1,6 @@
 # Architecture: Automated Documentation Sync (`doc-sync`)
 
-> SDLC Step 2 · Input: [requirements.md](requirements.md) (approved) · Status: **Approved (2026-10-13)**
+> SDLC Step 2 · Input: [requirements.md](requirements.md) (approved) · Status: **Approved (2026-10-13), revised after [design review](design-review.md) (see §11)**
 
 ## 1. Context and Goals
 
@@ -54,15 +54,15 @@ All modules live in `src/doc-sync/`.
 
 | Module              | Responsibility                                                                                                                                                                                                              | Requirements                | Side effects                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------- |
-| `bin.ts`            | The only module with top-level code. Calls `runCli(process.argv.slice(2), process.env, …)` and sets `process.exitCode`. It is intentionally tiny and excluded from coverage                                                  | NFR-3.3                     | **Yes, intentional**: reads argv/env, sets the exit code          |
-| `cli.ts`            | Composition root. Wires in the real dependencies, calls `syncDocs`, turns the `SyncResult` or an error into stdout/stderr lines and an `ExitCode`, and prints usage                                                          | FR-1, FR-9, FR-10, NFR-2.3  | Writes only to the injected `stdout`/`stderr` streams           |
-| `args.ts`           | Wraps `util.parseArgs` (`strict: true`), validates `--repo` (FR-2), and lexically resolves `--out` against the cwd, rejecting absolute or escaping paths                                                                      | FR-1, FR-2, NFR-1.4         | None (pure; `cwd` is passed in)                                  |
-| `config.ts`         | Central env validation: `readConfig(env)` returns `{ token?: string }`. Trims the value and treats an empty one as absent; rejects a token containing whitespace or control characters (header-injection guard)              | FR-3, NFR-1.1, NFR-3.3      | None (env object is passed in)                                   |
-| `github-client.ts`  | `fetchRepository(ref, deps)` builds the URL from the fixed base `https://api.github.com` with `encodeURIComponent` segments, sets the headers and `AbortSignal.timeout(10_000)`, maps status codes to `GitHubApiError`, and passes the JSON to `parseRepoMetadata` | FR-3, FR-11, NFR-1.1, NFR-1.5, NFR-2.2 | Network, through the injected `fetch` |
-| `repo-metadata.ts`  | `parseRepoMetadata(json: unknown)` narrows the body with type guards into `RepoMetadata` and maps "missing" values (`null`, `""`, whitespace, `[]`) to `null`. A body that is not an object, or that lacks `full_name`/`html_url`, is reported as malformed | FR-4, FR-5, FR-6, FR-11 | None (pure) |
-| `render.ts`         | `renderSection(meta, { now, eol })` produces the timestamp line plus the table in a fixed row order. It sanitizes every cell (`\|` escape, newline collapse, `<!--`/`-->` neutralization), allows only `http(s)` links, and renders missing values as `Not Found` | FR-4, FR-5, FR-8, NFR-1.2, NFR-1.3, NFR-2.4 | None (pure; the clock is passed in) |
-| `markers.ts`        | `locateSection(content)` finds exactly one start-marker line followed by exactly one end-marker line, or throws a `TargetFileError`. `replaceSection` splices in a new body. `normalizeForCompare` drops the `_Last synced:_` line and normalizes EOLs. `detectEol` returns CRLF or LF | FR-7, FR-10, A2 | None (pure) |
-| `target-file.ts`    | `readTarget(path, fs)` uses `realpath` to confirm the file is inside the cwd (catches symlink escapes), checks it is a regular file, and reads it as UTF-8. `writeAtomic(path, content, fs)` writes a temporary file in the same directory, renames it over the target, and removes the temporary file if anything fails | FR-7, NFR-1.4, NFR-2.1 | File system, through the injected `fs` |
+| `bin.ts`            | The only module with top-level code. Calls `runCli(process.argv.slice(2), process.env, …)` and sets `process.exitCode`, with a last-resort rejection handler that sets exit `3` (DR-12). It is intentionally tiny and excluded from coverage | NFR-3.3                     | **Yes, intentional**: reads argv/env, sets the exit code          |
+| `cli.ts`            | Composition root. Wires in the real dependencies, calls `syncDocs`, turns the `SyncResult` or an error into stdout/stderr lines and an `ExitCode`, and prints usage. Messages show `--out` exactly as the user gave it (DR-13) | FR-1, FR-9, FR-10, NFR-2.3  | Writes only to the injected `stdout`/`stderr` streams           |
+| `args.ts`           | Wraps `util.parseArgs` (`strict: true`), validates `--repo` (FR-2), rejects an absolute `--out`, and lexically checks `isInside(cwd, path.resolve(cwd, out))` (DR-5) | FR-1, FR-2, NFR-1.4         | None (pure; `cwd` is passed in)                                  |
+| `config.ts`         | Central env validation: `readConfig(env)` returns `{ token?: string }`. Trims the value and treats an empty one as absent; rejects a token containing whitespace or control characters (header-injection guard), using a fixed message that never echoes the value (DR-10) | FR-3, NFR-1.1, NFR-3.3      | None (env object is passed in)                                   |
+| `github-client.ts`  | `fetchRepository(ref, deps)` builds the URL from the fixed base `https://api.github.com` with `encodeURIComponent` segments, sets the headers and `AbortSignal.timeout(10_000)`, maps status codes to `GitHubApiError` (unmatched statuses become `unexpected-status`, DR-3), asserts the final `response.url` origin is `https://api.github.com` (DR-2), and passes the JSON to `parseRepoMetadata` | FR-3, FR-11, NFR-1.1, NFR-1.5, NFR-2.2 | Network, through the injected `fetch` |
+| `repo-metadata.ts`  | `parseRepoMetadata(json: unknown)` narrows the body with type guards into `RepoMetadata` and maps "missing" values (`null`, `""`, whitespace, `[]`) to `null`. A body that is not an object, or that lacks `name`/`full_name`/`html_url`, is reported as malformed. `created_at` is kept only if `Date.parse` succeeds; otherwise it is `null` (DR-8) | FR-4, FR-5, FR-6, FR-11 | None (pure) |
+| `render.ts`         | `renderSection(meta, { now, eol })` produces the timestamp line plus the table in a fixed row order. Every API string goes through `escapeMarkdownText`, which collapses whitespace, HTML-encodes `& < >` and backslash-escapes ``\ ` * _ [ ] \| ~ #`` (DR-1). Links are built only for `http(s)` URLs, using a percent-encoded `href` and escaped text. Inline code is used only when the value contains no backtick (DR-7). Missing values render as `Not Found` | FR-4, FR-5, FR-8, NFR-1.2, NFR-1.3, NFR-2.4 | None (pure; the clock is passed in) |
+| `markers.ts`        | `locateSection(content)` scans line by line, **ignoring fenced code blocks** (DR-4), and finds exactly one start-marker line followed by exactly one end-marker line, or throws a `TargetFileError`. `replaceSection` splices in a new body. `normalizeForCompare` drops the `_Last synced:_` line and normalizes EOLs. `detectEol` returns CRLF or LF | FR-7, FR-10, A2 | None (pure) |
+| `target-file.ts`    | `readTarget(path, fs)` checks `isInside(realpath(cwd), realpath(target))` (DR-5), checks the target is a regular file, and returns `{ realPath, content, mode }`. `writeAtomic(realPath, content, mode, fs)` writes `.<basename>.doc-sync-<randomUUID>.tmp` in the same directory, applies the original `mode`, renames it over the **real** path so symlinks are preserved, and removes the temp file if anything fails (DR-6) | FR-7, NFR-1.4, NFR-2.1 | File system, through the injected `fs` |
 | `sync.ts`           | `syncDocs(options, deps)` orchestrates the run: read, locate, fetch, render, compare, then write or skip. Returns a `SyncResult`                                                                                              | FR-6–FR-10, A2              | Only through the injected adapters                              |
 | `errors.ts`         | `DocSyncError` (abstract) and its subclasses `UsageError`, `GitHubApiError`, `TargetFileError`, each with a typed `reason` and an optional `cause`; `exitCodeFor(error)`                                                     | FR-11, NFR-2.3, NFR-3.3     | None                                                            |
 
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ### Marked section format
 
-Markers are only recognized when they sit on their own line; surrounding whitespace is allowed. Everything between the two marker lines belongs to the tool:
+Markers are only recognized when they sit on their own line; surrounding whitespace is allowed. Marker lines **inside fenced code blocks** (```` ``` ```` or `~~~`, indented 0–3 spaces) are ignored, so a document can show the markers as an example (DR-4). A UTF-8 BOM, a missing trailing newline, and the file's EOL style are preserved (DR-11). Everything between the two marker lines belongs to the tool:
 
 ```markdown
 <!-- doc-sync:start -->
@@ -152,7 +152,7 @@ export interface RepoMetadata {
   readonly license: { readonly name: string; readonly spdxId: string | null } | null;
   readonly topics: ReadonlyArray<string>; // empty → "Not Found"
   readonly homepage: string | null;
-  readonly createdAt: string | null; // ISO string from API
+  readonly createdAt: string | null; // ISO string from API, null if unparseable (DR-8)
 }
 
 export type SyncResult =
@@ -163,7 +163,8 @@ export type SyncResult =
 
 export type GitHubApiErrorReason =
   | 'not-found' | 'unauthorized' | 'rate-limited' | 'forbidden'
-  | 'server-error' | 'network' | 'timeout' | 'malformed-response';
+  | 'server-error' | 'unexpected-status' | 'network' | 'timeout'
+  | 'malformed-response'; // includes a response from an unexpected origin (DR-2)
 
 export type TargetFileErrorReason =
   | 'not-found' | 'not-a-file' | 'outside-cwd' | 'read-failed'
@@ -174,11 +175,17 @@ export type TargetFileErrorReason =
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 export interface FileSystemLike {
   readFile(path: string, enc: 'utf8'): Promise<string>;
-  writeFile(path: string, data: string, enc: 'utf8'): Promise<void>;
+  writeFile(path: string, data: string, opts: { encoding: 'utf8'; mode: number }): Promise<void>;
+  chmod(path: string, mode: number): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   rm(path: string, opts: { force: true }): Promise<void>;
   realpath(path: string): Promise<string>;
-  stat(path: string): Promise<{ isFile(): boolean }>;
+  stat(path: string): Promise<{ isFile(): boolean; readonly mode: number }>;
+}
+export interface TargetFile {
+  readonly realPath: string;
+  readonly content: string;
+  readonly mode: number;
 }
 export interface SyncDeps {
   readonly fetch: FetchLike;
@@ -204,6 +211,10 @@ export interface SyncDeps {
 
 **Secret safety (NFR-1.1).** Error messages are built from fixed templates plus the status code, the repo ref and reset times. Response bodies and request headers are never included. `cli.ts` prints only `error.message`, never `cause` or stacks. As defense in depth, it also redacts any occurrence of the token from its output before writing.
 
+**Status mapping (DR-3).** The order is: `401`, then `404`, then rate-limited (below), then other `403`, then `5xx`, then any other non-2xx as `unexpected-status`. A `2xx` response whose final URL is not on `https://api.github.com` is `malformed-response` (DR-2).
+
+**Token-format error (DR-10).** The message is fixed: `GITHUB_TOKEN contains whitespace or control characters`.
+
 **Rate limit detection.** A response counts as rate-limited when the status is `429`, or the status is `403` and either `x-ratelimit-remaining: 0` or a `retry-after` header is present. If `x-ratelimit-reset` exists, it is shown as an ISO time.
 
 ## 6. Technology Choices
@@ -227,6 +238,25 @@ export interface SyncDeps {
 
 No test makes a real network call. The integration tests clean up their temp directories in `afterEach`.
 
+**Required edge cases (DR-11):**
+- a BOM before the start marker;
+- no trailing newline;
+- an empty section on the first run;
+- CRLF line endings;
+- a marker line with trailing spaces (recognized);
+- a marker line followed by text (not recognized);
+- markers inside a fenced code block (ignored).
+
+**Required security cases (DR-1, DR-2, DR-7, DR-10):**
+- hostile description values (`<!-- doc-sync:end -->`, `<script>`, `[x](javascript:…)`, `|`, newlines);
+- a `javascript:` homepage;
+- a URL containing `(`, `)` or spaces;
+- a branch name containing a backtick;
+- a redirect to a foreign origin;
+- the token never appearing in stdout or stderr on any path.
+
+**Coverage target (DR-9):** ≥ 90 % lines and branches for `src/doc-sync/**` (excluding `bin.ts`), measured with `test:coverage:all` in Step 7. Not enforced as a threshold.
+
 ## 8. File Layout and Build/CI Changes
 
 ```text
@@ -243,12 +273,14 @@ Proposed changes:
 1. **`package.json` scripts**
    - `"doc-sync": "node build/doc-sync/bin.js"`. The current `tsconfig.json` has `rootDir: src` and `outDir: build`, so `src/doc-sync/bin.ts` compiles to `build/doc-sync/bin.js`.
    - `"test:integration": "vitest run integration --config __tests__/vitest.config.ts"`. The existing `test` script filters on `unit`, so integration tests would not otherwise run.
+   - `"test:coverage:all": "vitest run --config __tests__/vitest.config.ts --coverage.enabled --coverage.all"` (DR-9).
 2. **`.github/workflows/nodejs.yml`**: add `npm run test:integration` to the `tests` job.
 3. **`__tests__/vitest.config.ts`**: exclude `src/doc-sync/bin.ts` from coverage.
-4. **`README.md`**: add a short "doc-sync" usage section.
-5. No changes to `tsconfig*.json`, ESLint or Prettier config. No new dependencies.
+4. **`README.md`**: add a short "doc-sync" usage section. Because of DR-4, it can show the markers inside a code fence.
+5. **`docs/PROJECT_INFO.md`** (new): the sample target with the markers, used for the Step 7 content check (R7).
+6. No changes to `tsconfig*.json`, ESLint or Prettier config. No new dependencies.
 
-> Observation, out of scope: the existing `"start": "node build/src/main.js"` does not match `rootDir: src` (which outputs `build/main.js`). It is not touched; this is noted for the design review.
+> Observation, out of scope: the existing `"start": "node build/src/main.js"` does not match `rootDir: src` (which outputs `build/main.js`). It is not touched; the design review deferred it (F16).
 
 ## 9. Requirement Traceability
 
@@ -270,14 +302,23 @@ Proposed changes:
 | NFR-3       | all; `bin.ts` is the only side-effect module     |
 | NFR-4       | `SyncDeps` seams; test strategy (§7)             |
 
-## 10. Risks and Open Questions (for Step 3 design review)
+## 10. Risks and Open Questions
 
-| #   | Item                                                                                                                                       | Initial view                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| R1  | Unauthenticated rate limit (60 req/h) on shared CI runners                                                                                 | Clear `rate-limited` message suggesting `GITHUB_TOKEN`                              |
-| R2  | GitHub response shape changes                                                                                                              | Type guards; only `full_name`/`html_url` are required, everything else degrades to `Not Found` |
-| R3  | Race between reading and writing (the file is edited while the tool runs)                                                                  | Accept; the run is short and the write is atomic                                    |
-| R4  | `rename` over an open file on Windows can fail with `EPERM`                                                                                | Surface it as `write-failed`; no retry (retries are out of scope)                   |
-| R5  | A symlinked `--out` that points outside the cwd                                                                                            | `realpath` check in `readTarget`                                                    |
-| R6  | Does `--repo` matching need to be case-insensitive, or follow GitHub redirects for renamed repos?                                           | `fetch` follows redirects by default; the rendered `full_name` comes from the API   |
-| R7  | Sample target for the Step 7 content check: add markers to `README.md` or to a new `docs/PROJECT_INFO.md`?                                  | Open                                                                               |
+Dispositions are taken from the [design review](design-review.md).
+
+| #   | Item                                                                                          | Disposition                                                                                        |
+| --- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| R1  | Unauthenticated rate limit (60 req/h) on shared CI runners                                    | Mitigated: clear `rate-limited` message suggesting `GITHUB_TOKEN`                                   |
+| R2  | GitHub response shape changes                                                                 | Mitigated: type guards; only `name`/`full_name`/`html_url` are required, everything else degrades to `Not Found` |
+| R3  | Race between reading and writing (the file is edited while the tool runs)                     | Accepted (F15)                                                                                     |
+| R4  | `rename` over an open file on Windows can fail with `EPERM`                                   | Accepted (F15): surfaces as `write-failed`                                                         |
+| R5  | A symlinked `--out` that points outside the cwd                                               | Mitigated: DR-5 (`realpath` of both the cwd and the target)                                        |
+| R6  | Redirects for renamed repos                                                                   | Mitigated: DR-2 (follow redirects, then assert the final origin)                                   |
+| R7  | Sample target for the Step 7 content check                                                    | Decided: new `docs/PROJECT_INFO.md`                                                                |
+
+## 11. Change Log
+
+| Date       | Change                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-13 | Initial architecture approved (Step 2)                                                                                                       |
+| 2026-10-13 | Design review applied (Step 3): DR-1 escaping, DR-2 origin check, DR-3 `unexpected-status`, DR-4 fence-aware markers, DR-5 containment, DR-6 write safety, DR-7 links/code spans, DR-8 dates, DR-9 coverage script, DR-10 token message, DR-11 edge-case tests, DR-12 bin handler, DR-13 relative path; R1–R7 dispositions |

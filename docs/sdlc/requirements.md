@@ -1,6 +1,6 @@
 # Requirements: Automated Documentation Sync (`doc-sync`)
 
-> SDLC Step 1 · Source story: [user-story.md](user-story.md) · Status: **Approved (2026-10-13)**
+> SDLC Step 1 · Source story: [user-story.md](user-story.md) · Status: **Approved (2026-10-13), amended by [design review](design-review.md) (DR-1, DR-3)**
 
 ## 1. Overview
 
@@ -97,6 +97,7 @@ The tool MUST map failures to clear messages, exit with code `3`, and leave the 
 | `403`/`429` with `x-ratelimit-remaining: 0` or a `retry-after` header | Rate limit exceeded; include the reset time if known; suggest `GITHUB_TOKEN` |
 | other `403`                                                         | Access forbidden                                                       |
 | `5xx`                                                               | GitHub API unavailable, including the status code                      |
+| any other non-2xx status (e.g. `410`, `422`, `451`) | Unexpected status, including the status code *(design review DR-3)* |
 | network error / timeout                                             | Could not reach the GitHub API                                         |
 | `2xx` with a malformed or unexpected body                           | Unexpected API response                                                |
 
@@ -105,7 +106,7 @@ The tool MUST map failures to clear messages, exit with code `3`, and leave the 
 ### NFR-1 Security
 
 - **NFR-1.1** The token MUST NOT appear in stdout, stderr, the output file, or error messages, including messages wrapped as error causes.
-- **NFR-1.2** API-sourced values MUST be sanitized before rendering. Escape `|`, collapse newlines to spaces, and neutralize HTML comment sequences (`<!--`, `-->`) so that data cannot break the table or inject or close markers.
+- **NFR-1.2** API-sourced values MUST be sanitized before rendering, so that data cannot break the table, inject or close markers, or inject HTML, links or formatting. Collapse whitespace (including newlines) to single spaces, HTML-encode `&`, `<` and `>`, and backslash-escape the Markdown punctuation ``\ ` * _ [ ] | ~ #``. *(Widened by design review DR-1.)*
 - **NFR-1.3** Rendered links MUST use only `http:`/`https:` URLs. Any other scheme (for example `javascript:`) renders as plain escaped text, not as a link.
 - **NFR-1.4** `--out` MUST resolve to a regular file inside the current working directory. Paths outside it, including paths that escape through `..` or absolute paths, are rejected with exit code `2`.
 - **NFR-1.5** The token is sent only to `https://api.github.com`.
