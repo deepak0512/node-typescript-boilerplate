@@ -24,11 +24,13 @@ export function escapeMarkdownText(value: string): string {
 }
 
 // URL.href already percent-encodes spaces, quotes, and angle brackets; these remaining
-// characters would end the link destination or split the table cell (DR-7).
+// characters would end the link destination or split the table cell (DR-7). A backslash
+// survives in the query/fragment and would escape the closing parenthesis (CR-2).
 const LINK_UNSAFE: Readonly<Record<string, string>> = {
   '(': '%28',
   ')': '%29',
   '|': '%7C',
+  '\\': '%5C',
 };
 
 /**
@@ -45,7 +47,10 @@ export function renderLink(value: string): string {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return escapeMarkdownText(value);
   }
-  const href = url.href.replace(/[()|]/g, (char) => LINK_UNSAFE[char] ?? char);
+  const href = url.href.replace(
+    /[()|\\]/g,
+    (char) => LINK_UNSAFE[char] ?? char,
+  );
   const text = escapeMarkdownText(
     url.href.replace(/^https?:\/\//, '').replace(/\/$/, ''),
   );

@@ -27,6 +27,8 @@ describe('readConfig', () => {
     ['an inner space', 'ghp_secret value'],
     ['an inner newline', 'ghp_secret\nX-Injected: 1'],
     ['a control character', 'ghp_secret\u0007'],
+    // Regression CR-4: non-ASCII used to pass and then fail inside fetch as a "network" error.
+    ['non-ASCII characters', 'ghp_secret_tök€'],
   ])(
     'rejects a token containing %s without echoing it',
     (_label, GITHUB_TOKEN) => {
@@ -40,7 +42,7 @@ describe('readConfig', () => {
       expect(thrown).toBeInstanceOf(UsageError);
       expect(thrown).toHaveProperty(
         'message',
-        'GITHUB_TOKEN contains whitespace or control characters',
+        'GITHUB_TOKEN contains whitespace, control, or non-ASCII characters',
       );
       expect(String(thrown)).not.toContain('ghp_secret');
     },

@@ -213,7 +213,7 @@ export interface SyncDeps {
 
 **Status mapping (DR-3).** The order is: `401`, then `404`, then rate-limited (below), then other `403`, then `5xx`, then any other non-2xx as `unexpected-status`. A `2xx` response whose final URL is not on `https://api.github.com` is `malformed-response` (DR-2).
 
-**Token-format error (DR-10).** The message is fixed: `GITHUB_TOKEN contains whitespace or control characters`.
+**Token-format error (DR-10).** The message is fixed: `GITHUB_TOKEN contains whitespace, control, or non-ASCII characters`.
 
 **Rate limit detection.** A response counts as rate-limited when the status is `429`, or the status is `403` and either `x-ratelimit-remaining: 0` or a `retry-after` header is present. If `x-ratelimit-reset` exists, it is shown as an ISO time.
 

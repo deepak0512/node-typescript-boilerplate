@@ -165,6 +165,14 @@ describe('renderLink', () => {
     );
   });
 
+  // Regression CR-2: a backslash in the query/fragment escaped the closing parenthesis.
+  it.each([
+    ['query', 'https://a.com/?x=\\', 'https://a.com/?x=%5C'],
+    ['fragment', 'https://a.com/#x\\', 'https://a.com/#x%5C'],
+  ])('percent-encodes a backslash in the %s', (_label, value, href) => {
+    expect(renderLink(value).endsWith(`](${href})`)).toBe(true);
+  });
+
   it.each([
     'javascript:alert(1)',
     'data:text/html,<b>x</b>',

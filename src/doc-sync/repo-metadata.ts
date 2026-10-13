@@ -38,9 +38,18 @@ function parseTopics(value: unknown): ReadonlyArray<string> {
     .filter((topic): topic is string => topic !== null);
 }
 
+// Only ISO-8601 date-times with an explicit zone are accepted; `Date.parse` reads anything
+// else as local time, which would make the rendered date depend on the machine (CR-5).
+const ISO_DATE_TIME_WITH_ZONE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 function parseTimestamp(value: unknown): string | null {
   const text = presentString(value);
-  return text !== null && !Number.isNaN(Date.parse(text)) ? text : null;
+  return text !== null &&
+    ISO_DATE_TIME_WITH_ZONE.test(text) &&
+    !Number.isNaN(Date.parse(text))
+    ? text
+    : null;
 }
 
 /**

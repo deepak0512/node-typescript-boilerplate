@@ -6,8 +6,9 @@ export interface Config {
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
-// Whitespace or control characters inside a token would corrupt the Authorization header.
-const INVALID_TOKEN_CHARS = /[\s\p{Cc}]/u;
+// Header values must be printable ASCII: whitespace or control characters would corrupt the
+// Authorization header, and non-ASCII makes `fetch` throw while building it (CR-4).
+const INVALID_TOKEN_CHARS = /[^\x21-\x7E]/;
 
 /**
  * Validates doc-sync's environment in one place (NFR-3.3). The env object is passed in so that
@@ -21,7 +22,7 @@ export function readConfig(env: Env): Config {
   if (INVALID_TOKEN_CHARS.test(token)) {
     // Fixed message: never echo any part of the token (DR-10).
     throw new UsageError(
-      'GITHUB_TOKEN contains whitespace or control characters',
+      'GITHUB_TOKEN contains whitespace, control, or non-ASCII characters',
     );
   }
   return { token };

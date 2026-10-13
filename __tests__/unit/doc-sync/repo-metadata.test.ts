@@ -118,6 +118,25 @@ describe('parseRepoMetadata', () => {
     });
   });
 
+  // Regression CR-5: zone-less or non-ISO values were parsed as local time.
+  it.each(['2017-03-02T00:30:00', '2017-03-02', 'March 2, 2017', '2017'])(
+    'nulls created_at %j without an explicit time zone',
+    (created_at) => {
+      expect(
+        parseRepoMetadata({ ...FULL_REPO_RESPONSE, created_at }).createdAt,
+      ).toBeNull();
+    },
+  );
+
+  it.each(['2017-03-02T00:30:00Z', '2017-03-02T00:30:00.123+05:30'])(
+    'keeps created_at %j with an explicit time zone',
+    (created_at) => {
+      expect(
+        parseRepoMetadata({ ...FULL_REPO_RESPONSE, created_at }).createdAt,
+      ).toBe(created_at);
+    },
+  );
+
   it('nulls an unparseable created_at instead of throwing (DR-8)', () => {
     expect(
       parseRepoMetadata({ ...FULL_REPO_RESPONSE, created_at: 'not-a-date' })

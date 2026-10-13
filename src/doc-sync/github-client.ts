@@ -117,13 +117,25 @@ function isRateLimited(response: Response): boolean {
   );
 }
 
-function rateLimitDetail(response: Response): string {
-  const reset = Number(response.headers.get('x-ratelimit-reset'));
-  if (response.headers.has('x-ratelimit-reset') && Number.isFinite(reset)) {
-    return `; resets at ${new Date(reset * 1000).toISOString()}`;
+/** A header's numeric value, or `undefined` when absent, blank, or not a finite number. */
+function numericHeader(response: Response, name: string): number | undefined {
+  const raw = response.headers.get(name)?.trim();
+  if (raw === undefined || raw === '') {
+    return undefined;
   }
-  const retryAfter = Number(response.headers.get('retry-after'));
-  if (response.headers.has('retry-after') && Number.isFinite(retryAfter)) {
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+// Header values are untrusted: an out-of-range reset must not throw from toISOString (CR-3).
+function rateLimitDetail(response: Response): string {
+  const reset = numericHeader(response, 'x-ratelimit-reset');
+  const resetAt = reset === undefined ? undefined : new Date(reset * 1000);
+  if (resetAt !== undefined && !Number.isNaN(resetAt.getTime())) {
+    return `; resets at ${resetAt.toISOString()}`;
+  }
+  const retryAfter = numericHeader(response, 'retry-after');
+  if (retryAfter !== undefined) {
     return `; retry after ${retryAfter}s`;
   }
   return '';

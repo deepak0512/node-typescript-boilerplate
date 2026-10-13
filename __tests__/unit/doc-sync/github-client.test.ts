@@ -163,6 +163,31 @@ describe('fetchRepository failures (FR-11)', () => {
     ).rejects.toThrow(/^GitHub API rate limit exceeded \(429\)$/);
   });
 
+  // Regression CR-3: an out-of-range reset threw a RangeError; a blank one read as 1970.
+  it.each([
+    ['an out-of-range', { 'x-ratelimit-reset': '1e20' }],
+    ['a blank', { 'x-ratelimit-reset': '' }],
+    [
+      'a blank retry-after and',
+      { 'x-ratelimit-reset': ' ', 'retry-after': '' },
+    ],
+  ])('omits %s reset header from the message', async (_label, headers) => {
+    const fetch = fakeFetch(() =>
+      jsonResponse(
+        {},
+        { status: 403, headers: { 'x-ratelimit-remaining': '0', ...headers } },
+      ),
+    );
+
+    await expect(
+      fetchRepository(repo, { fetch, token: TOKEN }),
+    ).rejects.toMatchObject({
+      name: 'GitHubApiError',
+      reason: 'rate-limited',
+      message: 'GitHub API rate limit exceeded (403)',
+    });
+  });
+
   it('ignores a non-numeric reset header', async () => {
     const fetch = fakeFetch(() =>
       jsonResponse(

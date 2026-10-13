@@ -127,7 +127,7 @@ describe('runCli', () => {
 
       expect(result.code).toBe(2);
       expect(result.stderr).toContain(
-        'GITHUB_TOKEN contains whitespace or control characters',
+        'GITHUB_TOKEN contains whitespace, control, or non-ASCII characters',
       );
       expect(result.stderr).not.toContain(TOKEN);
     });

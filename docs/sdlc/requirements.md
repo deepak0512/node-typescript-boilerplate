@@ -1,6 +1,6 @@
 # Requirements: Automated Documentation Sync (`doc-sync`)
 
-> SDLC Step 1 · Source story: [user-story.md](user-story.md) · Status: **Approved (2026-10-13), amended by [design review](design-review.md) (DR-1, DR-3)**
+> SDLC Step 1 · Source story: [user-story.md](user-story.md) · Status: **Approved (2026-10-13), amended by [design review](design-review.md) (DR-1, DR-3) and [code review](code-review.md) (CR-1)**
 
 ## 1. Overview
 
@@ -106,7 +106,7 @@ The tool MUST map failures to clear messages, exit with code `3`, and leave the 
 ### NFR-1 Security
 
 - **NFR-1.1** The token MUST NOT appear in stdout, stderr, the output file, or error messages, including messages wrapped as error causes.
-- **NFR-1.2** API-sourced values MUST be sanitized before rendering, so that data cannot break the table, inject or close markers, or inject HTML, links or formatting. Collapse whitespace (including newlines) to single spaces, HTML-encode `&`, `<` and `>`, and backslash-escape the Markdown punctuation ``\ ` * _ [ ] | ~ #``. *(Widened by design review DR-1.)*
+- **NFR-1.2** API-sourced values MUST be sanitized before rendering, so that data cannot break the table, inject or close markers, or inject HTML, links or formatting. Collapse whitespace (including newlines) to single spaces, HTML-encode `&`, `<` and `>`, and backslash-escape the Markdown punctuation ``\ ` * _ [ ] | ~ #``. *(Widened by design review DR-1.)* Bare URLs, `www.` hosts and e-mail addresses in API text MAY still be auto-linked by GFM renderers: the visible text is the URL itself, so the link is not deceptive *(accepted in code review CR-1)*.
 - **NFR-1.3** Rendered links MUST use only `http:`/`https:` URLs. Any other scheme (for example `javascript:`) renders as plain escaped text, not as a link.
 - **NFR-1.4** `--out` MUST resolve to a regular file inside the current working directory. Paths outside it, including paths that escape through `..` or absolute paths, are rejected with exit code `2`.
 - **NFR-1.5** The token is sent only to `https://api.github.com`.
@@ -149,22 +149,24 @@ The tool MUST map failures to clear messages, exit with code `3`, and leave the 
 | A3  | The tool is added under `src/` and run with `npm run doc-sync -- --repo … --out …` after a build                                                                                  | Assumed – detailed in Step 2  |
 | A4  | The existing boilerplate example (`src/main.ts`, `greeter`) is left as it is                                                                                                       | Assumed                      |
 
-## 7. Traceability (filled in at Step 7)
+## 7. Traceability
+
+Filled in during the Step 6 code review.
 
 | Requirement | Test(s) |
 | ----------- | ------- |
-| FR-1        |         |
-| FR-2        |         |
-| FR-3        |         |
-| FR-4        |         |
-| FR-5        |         |
-| FR-6        |         |
-| FR-7        |         |
-| FR-8        |         |
-| FR-9        |         |
-| FR-10       |         |
-| FR-11       |         |
-| NFR-1       |         |
-| NFR-2       |         |
-| NFR-3       |         |
-| NFR-4       |         |
+| FR-1 | __tests__/unit/doc-sync/args.test.ts (parseCliArgs, USAGE); __tests__/unit/doc-sync/cli.test.ts (--help, usage errors exit 2) |
+| FR-2 | __tests__/unit/doc-sync/args.test.ts (parseRepoRef accepts/rejects); __tests__/unit/doc-sync/cli.test.ts (no fetch on invalid repo) |
+| FR-3 | __tests__/unit/doc-sync/github-client.test.ts (request: URL, encoding, headers, token) |
+| FR-4 | __tests__/unit/doc-sync/render.test.ts (full table in order); __tests__/unit/doc-sync/repo-metadata.test.ts (full response); __tests__/integration/doc-sync.test.ts (exact file bytes) |
+| FR-5 | __tests__/unit/doc-sync/repo-metadata.test.ts (missing optional fields, license, topics); __tests__/unit/doc-sync/render.test.ts (Not Found rows); __tests__/integration/doc-sync.test.ts (empty repository) |
+| FR-6 | __tests__/unit/doc-sync/repo-metadata.test.ts (empty repository); __tests__/integration/doc-sync.test.ts (empty repository) |
+| FR-7 | __tests__/unit/doc-sync/markers.test.ts (locate/replace, marker errors, fences, BOM/CRLF); __tests__/unit/doc-sync/target-file.test.ts; __tests__/integration/doc-sync.test.ts (missing markers/file, directory) |
+| FR-8 | __tests__/unit/doc-sync/render.test.ts (renderTimestamp, section header) |
+| FR-9 | __tests__/unit/doc-sync/sync.test.ts (write mode); __tests__/unit/doc-sync/cli.test.ts (Updated message); __tests__/integration/doc-sync.test.ts (writes section, second run not modified) |
+| FR-10 | __tests__/unit/doc-sync/sync.test.ts (check mode); __tests__/unit/doc-sync/cli.test.ts (exit 1 / 0); __tests__/integration/doc-sync.test.ts (--check drift and clean) |
+| FR-11 | __tests__/unit/doc-sync/github-client.test.ts (failures table, network, timeout, malformed); __tests__/unit/doc-sync/cli.test.ts (runtime errors exit 3); __tests__/integration/doc-sync.test.ts (failures leave file untouched) |
+| NFR-1 | __tests__/unit/doc-sync/config.test.ts; __tests__/unit/doc-sync/render.test.ts (hostile data, links); __tests__/unit/doc-sync/github-client.test.ts (token absent, DR-2 origin); __tests__/unit/doc-sync/args.test.ts + __tests__/unit/doc-sync/paths.test.ts (containment); __tests__/unit/doc-sync/target-file.test.ts (outside-cwd); __tests__/unit/doc-sync/cli.test.ts (redaction); __tests__/integration/doc-sync.test.ts (per-run token check, symlink escape) |
+| NFR-2 | __tests__/unit/doc-sync/target-file.test.ts (atomic write, cleanup); __tests__/unit/doc-sync/github-client.test.ts (10 s timeout); __tests__/unit/doc-sync/errors.test.ts (exit codes); __tests__/unit/doc-sync/render.test.ts (determinism); __tests__/integration/doc-sync.test.ts (no temp files, file mode) |
+| NFR-3 | Verified by lint, check-types, prettier:check, npm ls --depth=0 (no new dependencies) — see code-review.md |
+| NFR-4 | __tests__/fixtures/fake-fetch.ts, fake-fs.ts; no test performs network I/O; coverage 99.3 % lines / 98.4 % branches (code-review.md) |
