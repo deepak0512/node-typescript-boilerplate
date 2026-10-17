@@ -86,9 +86,47 @@ unzip node-typescript-boilerplate.zip && rm node-typescript-boilerplate.zip
 - `lint` - lint source files and tests,
 - `test` - run tests,
 - `test:coverage` - run tests with coverage reporting,
+- `test:coverage:all` - run unit and integration tests with coverage reporting,
+- `test:integration` - run integration tests,
 - `test:watch` - interactive watch mode to automatically re-run tests,
 - `prettier` - reformat source files,
-- `prettier:check` - check source file formatting without modifying
+- `prettier:check` - check source file formatting without modifying,
+- `doc-sync` - run the built [doc-sync](#doc-sync) CLI
+
+## doc-sync
+
+`doc-sync` keeps a Markdown file in sync with a GitHub repository's metadata. It fetches `GET /repos/{owner}/{repo}` from the GitHub REST API and replaces the content between two marker lines with a table: name, full name, description, URL, default branch, license, topics, homepage, and created date. Fields GitHub does not provide are shown as `Not Found`. Everything outside the markers is left untouched.
+
+1. Add the markers, each on its own line, where the table should go:
+
+   ```md
+   <!-- doc-sync:start -->
+   <!-- doc-sync:end -->
+   ```
+
+   Markers inside fenced code blocks, like the example above, are ignored.
+
+2. Build, then run the tool from the directory that contains the file:
+
+   ```sh
+   npm run build
+   npm run doc-sync -- --repo owner/repo --out docs/PROJECT_INFO.md
+   ```
+
+3. In CI, add `--check` to fail the job when the documented metadata is stale. Nothing is written in this mode.
+
+| Option                | Description                                                         |
+| --------------------- | ------------------------------------------------------------------- |
+| `--repo <owner/repo>` | GitHub repository (required)                                        |
+| `--out <file>`        | Markdown file, relative to and inside the current directory (required) |
+| `--check`             | Do not write; exit `1` if the section is out of date                |
+| `--help`              | Show usage                                                          |
+
+Set `GITHUB_TOKEN` (optional) to authenticate and raise the API rate limit. The token is sent only to `https://api.github.com` and is never printed or written to the file.
+
+Exit codes: `0` success or up to date, `1` out of date (`--check`), `2` invalid arguments, `3` API or file error. The file is written atomically, and only when the data has changed; the `Last synced` timestamp alone never triggers a rewrite.
+
+See [docs/sdlc/](docs/sdlc/) for the requirements, architecture, and design decisions, and [docs/PROJECT_INFO.md](docs/PROJECT_INFO.md) for sample output.
 
 ## Additional information
 

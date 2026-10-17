@@ -9,7 +9,12 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'build/**/*'],
     coverage: {
       provider: 'v8',
-      exclude: [...coverageConfigDefaults.exclude, 'build/**/*'],
+      // bin.ts is the process entry point (side effects only); runCli is covered instead.
+      exclude: [
+        ...coverageConfigDefaults.exclude,
+        'build/**/*',
+        'src/doc-sync/bin.ts',
+      ],
     },
     typecheck: { tsconfig: './tsconfig.vitest.json' },
   },

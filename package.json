@@ -26,6 +26,7 @@
   },
   "scripts": {
     "start": "node build/src/main.js",
+    "doc-sync": "node build/doc-sync/bin.js",
     "clean": "rimraf coverage build tmp",
     "prebuild": "npm run lint && npm run check-types",
     "check-types": "tsc --noEmit -p tsconfig.json",
@@ -35,6 +36,8 @@
     "lint": "eslint .",
     "test": "vitest run unit --config __tests__/vitest.config.ts",
     "test:coverage": "vitest run unit --config __tests__/vitest.config.ts --coverage.enabled --coverage.all",
+    "test:coverage:all": "vitest run --config __tests__/vitest.config.ts --coverage.enabled --coverage.all",
+    "test:integration": "vitest run integration --config __tests__/vitest.config.ts",
     "test:watch": "vitest unit --config __tests__/vitest.config.ts",
     "prettier": "prettier \"{src,__{tests}__}/**/*.{ts,mts}\" --config .prettierrc --write",
     "prettier:check": "prettier \"{src,__{tests}__}/**/*.{ts,mts}\" --config .prettierrc --check"

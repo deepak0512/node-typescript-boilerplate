@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "node .github/hooks/scripts/deny-env-access.mjs",
+        "powershell": "node .github/hooks/scripts/deny-env-access.mjs",
+        "timeoutSec": 10
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "node .github/hooks/scripts/format-edited-ts.mjs",
+        "powershell": "node .github/hooks/scripts/format-edited-ts.mjs",
+        "timeoutSec": 60
+      }
+    ]
+  }
+}
